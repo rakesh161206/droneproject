@@ -60,6 +60,11 @@ SERVER_PORT = int(os.getenv("PORT", "8000"))
 CAMERA_SOURCE = os.getenv("CAMERA_SOURCE", "0")
 THERMAL_CAMERA_SOURCE = os.getenv("THERMAL_CAMERA_SOURCE", CAMERA_SOURCE)
 
+# Render and other cloud hosts inject the listening port through PORT.
+# Keep this explicit so the app binds correctly in deployment environments.
+if "PORT" in os.environ:
+    SERVER_PORT = int(os.environ["PORT"])
+
 
 def get_camera_source(source_name: str = "rgb"):
     """Use the RGB camera by default for the thermal feed and process it as thermal-style imagery."""
@@ -381,6 +386,12 @@ app.mount("/captures", StaticFiles(directory=str(CAPTURES_DIR)), name="captures"
 # --------------------------------------------------------------------------
 
 @app.get("/")
+@app.get("/healthz")
+async def health_check():
+    """Simple health endpoint for deployment checks and uptime probes."""
+    return {"status": "ok", "service": "aegis-sar-dashboard", "port": SERVER_PORT}
+
+
 @app.get("/dashboard")
 async def serve_dashboard():
     """Serve the AEGIS SAR mission console directly."""
