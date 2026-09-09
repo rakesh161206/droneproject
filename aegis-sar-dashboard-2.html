@@ -4,9 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AEGIS SAR — Mission Console</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
 <style>
   :root{
     --void:#070b0a;
@@ -591,7 +589,7 @@
     <button class="ctrl-btn abort" id="btnAbort">■ ABORT</button>
   </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="/vendor/leaflet/leaflet.js"></script>
 <script>
   // Start camera streams independently so a map-library failure cannot hide them.
   (function initCameraStreams(){

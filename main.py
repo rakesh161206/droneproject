@@ -380,6 +380,11 @@ app.add_middleware(
 # Serve captures statically
 app.mount("/captures", StaticFiles(directory=str(CAPTURES_DIR)), name="captures")
 
+# Serve bundled frontend dependencies locally so Render/browser startup does not depend on external CDNs.
+vendor_dir = BASE_DIR / "vendor"
+if vendor_dir.exists():
+    app.mount("/vendor", StaticFiles(directory=str(vendor_dir)), name="vendor")
+
 
 # --------------------------------------------------------------------------
 # Web & Dashboard Routes
