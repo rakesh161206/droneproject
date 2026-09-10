@@ -370,6 +370,39 @@
 
   .comms{ padding:6px 16px 14px; flex:1; }
 
+  /* ---------- MISSION INTELLIGENCE ---------- */
+  .intel-row{
+    display:grid;
+    grid-template-columns:1.25fr 1fr 1.25fr;
+    gap:12px;
+    margin-top:12px;
+  }
+  .intel-card{ min-height:142px; }
+  .intel-body{ padding:12px 16px 14px; }
+  .intel-stat{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:7px 0; border-bottom:1px solid var(--line-soft);
+    font-size:0.78rem;
+  }
+  .intel-stat:last-child{ border-bottom:none; }
+  .intel-stat .label{ color:var(--text-dim); }
+  .intel-stat .value{ font-family:'JetBrains Mono',monospace; font-weight:700; }
+  .intel-stat .value.alert{ color:var(--alert); }
+  .intel-stat .value.warn{ color:var(--fire); }
+  .intel-stat .value.good{ color:var(--safe); }
+  .intel-note{ color:var(--text-dim); font-size:0.78rem; line-height:1.45; }
+  .intel-note strong{ color:var(--text); }
+  .intel-action{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    margin-top:10px; padding-top:10px; border-top:1px solid var(--line-soft);
+  }
+  .intel-btn{
+    border:1px solid var(--safe); color:var(--safe); background:transparent;
+    border-radius:6px; padding:6px 9px; font:600 0.68rem 'JetBrains Mono',monospace;
+    cursor:pointer;
+  }
+  .intel-btn:hover{ background:rgba(47,230,164,0.1); }
+
   /* ---------- FOOTER CONTROLS ---------- */
   .controls{
     display:grid; grid-template-columns:repeat(4,1fr);
@@ -394,6 +427,7 @@
   @media (max-width: 980px){
     .grid{ grid-template-columns:1fr; }
     .bottom-row{ grid-template-columns:1fr 1fr; }
+    .intel-row{ grid-template-columns:1fr; }
     .controls{ grid-template-columns:1fr 1fr; }
     .map-wrap{ height:420px; }
     .status-cluster{ gap:14px; }
@@ -425,6 +459,7 @@
       <div class="item online"><span>UNIT</span><b>DRN-01</b></div>
       <div class="item online"><span>LINK</span><b id="linkStatusText">ONLINE</b></div>
       <div class="item"><span>LOCAL TIME</span><b class="mono" id="clock">--:--:--</b></div>
+      <div class="item"><span>MISSION ELAPSED</span><b class="mono" id="missionElapsed">00:00:00</b></div>
     </div>
   </div>
 
@@ -521,6 +556,36 @@
           TARGET &amp; DETECTIONS
         </div>
         <div class="alerts" id="zoneList"><!-- populated by JS --></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MISSION INTELLIGENCE -->
+  <div class="intel-row">
+    <div class="panel intel-card">
+      <div class="panel-head">DETECTION PRIORITY</div>
+      <div class="intel-body">
+        <div class="intel-stat"><span class="label">Total detections</span><span class="value" id="intelDetectionCount">0</span></div>
+        <div class="intel-stat"><span class="label">Critical / high confidence</span><span class="value alert" id="intelCriticalCount">0</span></div>
+        <div class="intel-stat"><span class="label">Latest target</span><span class="value" id="intelLatestTarget">Awaiting AI event</span></div>
+      </div>
+    </div>
+    <div class="panel intel-card">
+      <div class="panel-head">RESOURCE FORECAST</div>
+      <div class="intel-body">
+        <div class="intel-stat"><span class="label">Battery reserve</span><span class="value good" id="intelBattery">78%</span></div>
+        <div class="intel-stat"><span class="label">Estimated flight reserve</span><span class="value" id="intelFlightReserve">--</span></div>
+        <div class="intel-stat"><span class="label">Link condition</span><span class="value good" id="intelLink">STABLE</span></div>
+      </div>
+    </div>
+    <div class="panel intel-card">
+      <div class="panel-head">NEXT BEST ACTION</div>
+      <div class="intel-body">
+        <div class="intel-note" id="intelRecommendation">Waiting for a live detection. Keep the drone on patrol or set a target waypoint from the map.</div>
+        <div class="intel-action">
+          <span class="mono" style="font-size:0.64rem;color:var(--text-faint);">OPERATOR REPORT</span>
+          <button type="button" class="intel-btn" id="exportSitrep">EXPORT SITREP</button>
+        </div>
       </div>
     </div>
   </div>
@@ -636,6 +701,16 @@
     document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-GB');
   }
   tickClock(); setInterval(tickClock, 1000);
+  const missionStartedAt = Date.now();
+  function tickMissionElapsed(){
+    const elapsed = Math.max(0, Math.floor((Date.now() - missionStartedAt) / 1000));
+    const hours = Math.floor(elapsed / 3600);
+    const minutes = Math.floor((elapsed % 3600) / 60);
+    const seconds = elapsed % 60;
+    const el = document.getElementById('missionElapsed');
+    if (el) el.textContent = [hours, minutes, seconds].map(v => String(v).padStart(2, '0')).join(':');
+  }
+  tickMissionElapsed(); setInterval(tickMissionElapsed, 1000);
 
   // ---------- MAP + BASEMAPS ----------
   let center = [18.5225, 73.8567]; // operational area anchor (recenters on search / GPS)
@@ -907,6 +982,81 @@
 
   function jitter(v, amt){ return +(v + (Math.random()-0.5)*amt).toFixed(1); }
 
+  function updateMissionIntelligence(){
+    const total = detectedIncidents.length;
+    const priority = detectedIncidents.filter(det => {
+      const confidence = Number(det.confidence || 0);
+      const severity = String(det.severity || '').toLowerCase();
+      return confidence >= 0.8 || severity === 'critical' || severity === 'high';
+    }).length;
+    const latest = detectedIncidents[0];
+    const batteryValue = Math.round(battery);
+    const countEl = document.getElementById('intelDetectionCount');
+    const priorityEl = document.getElementById('intelCriticalCount');
+    const latestEl = document.getElementById('intelLatestTarget');
+    const batteryEl = document.getElementById('intelBattery');
+    const reserveEl = document.getElementById('intelFlightReserve');
+    const linkEl = document.getElementById('intelLink');
+    const recommendationEl = document.getElementById('intelRecommendation');
+
+    if (countEl) countEl.textContent = total;
+    if (priorityEl) priorityEl.textContent = priority;
+    if (latestEl) latestEl.textContent = latest ? `${latest.label} · ${Math.round(Number(latest.confidence || 0) * 100)}%` : 'Awaiting AI event';
+    if (batteryEl) {
+      batteryEl.textContent = `${batteryValue}%`;
+      batteryEl.className = `value ${batteryValue < 20 ? 'alert' : batteryValue < 35 ? 'warn' : 'good'}`;
+    }
+    if (reserveEl) {
+      reserveEl.textContent = batteryValue < 20 ? 'RETURN SOON' : batteryValue < 35 ? 'LIMITED' : 'OPERATIONAL';
+      reserveEl.className = `value ${batteryValue < 20 ? 'alert' : batteryValue < 35 ? 'warn' : 'good'}`;
+    }
+    if (linkEl) {
+      linkEl.textContent = isBackendConnected ? 'GATEWAY LIVE' : 'LOCAL SIM';
+      linkEl.className = `value ${isBackendConnected ? 'good' : 'warn'}`;
+    }
+    if (recommendationEl) {
+      if (!latest) {
+        recommendationEl.innerHTML = 'Waiting for a live detection. Keep the drone on patrol or set a target waypoint from the map.';
+      } else {
+        const confidence = Math.round(Number(latest.confidence || 0) * 100);
+        const action = confidence >= 80 ? 'Verify the target and dispatch an extraction response.' : 'Re-task the drone for a second-pass confirmation.';
+        recommendationEl.innerHTML = `<strong>${action}</strong><br>${latest.label} detected at ${fmtCoord([latest.lat, latest.lon])} with ${confidence}% confidence.`;
+      }
+    }
+  }
+
+  function exportSITREP(){
+    const now = new Date().toLocaleString('en-IN', { timeZone:'Asia/Kolkata' });
+    const latest = detectedIncidents[0];
+    const lines = [
+      'AI RESCUE DRONE DASHBOARD — SITUATION REPORT',
+      `Generated: ${now}`,
+      `Mission elapsed: ${document.getElementById('missionElapsed')?.textContent || '00:00:00'}`,
+      `Mission state: ${document.getElementById('missionState')?.textContent || 'UNKNOWN'}`,
+      '',
+      'TELEMETRY',
+      `Battery: ${document.getElementById('tBattery')?.textContent || '--'}`,
+      `Altitude: ${document.getElementById('tAlt')?.textContent || '--'}`,
+      `Ground speed: ${document.getElementById('tSpeed')?.textContent || '--'}`,
+      `Link latency: ${document.getElementById('tLatency')?.textContent || '--'}`,
+      `Packet loss: ${document.getElementById('tLoss')?.textContent || '--'}`,
+      '',
+      `Detections: ${detectedIncidents.length}`,
+      `Latest target: ${latest ? `${latest.label} (${Math.round(Number(latest.confidence || 0) * 100)}% confidence)` : 'None reported'}`,
+      latest ? `Coordinates: ${fmtCoord([latest.lat, latest.lon])}` : '',
+      '',
+      'Operator review required before dispatching any physical response.'
+    ].filter(Boolean);
+    const blob = new Blob([lines.join('\n')], { type:'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `mission-sitrep-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showStatus('SITREP exported for operator review.', 'ok');
+  }
+
   function updateTelemetryUI(data){
     document.getElementById('tBattery').textContent = Math.round(data.battery_pct ?? battery) + '%';
     document.getElementById('tAlt').textContent = (data.alt ?? alt).toFixed(0) + ' m';
@@ -920,6 +1070,8 @@
     const bVal = data.battery_pct ?? battery;
     battEl.className = 'v ' + (bVal < 20 ? '' : 'good');
     battEl.style.color = bVal < 20 ? 'var(--alert)' : '';
+    battery = Number(bVal);
+    updateMissionIntelligence();
   }
 
   function tickTelemetrySim(){
@@ -943,6 +1095,7 @@
     badge.className = 'backend-badge ' + (status ? 'connected' : 'sim');
     bText.textContent = text;
     if(linkStatus) linkStatus.textContent = status ? 'LIVE MESH' : 'SIMULATED';
+    updateMissionIntelligence();
   }
 
   function initWebSocket(){
@@ -1079,6 +1232,7 @@
       detectedIncidents.unshift(detRecord);
       renderIncidentList();
       updateZoneCount();
+      updateMissionIntelligence();
 
       // Add marker to map
       const pulse = `<div class="pulse-ring ${detType==='fire'?'fire':''}"></div>`;
@@ -1202,6 +1356,9 @@
     sendBackendCommand('LAND');
     showStatus('Mission aborted — drone landing', 'err');
   });
+
+  document.getElementById('exportSitrep').addEventListener('click', exportSITREP);
+  updateMissionIntelligence();
 
   // Start WebSocket connection on load
   initWebSocket();
