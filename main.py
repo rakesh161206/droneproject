@@ -390,13 +390,12 @@ if vendor_dir.exists():
 # Web & Dashboard Routes
 # --------------------------------------------------------------------------
 
-@app.get("/")
 @app.get("/healthz")
 async def health_check():
     """Simple health endpoint for deployment checks and uptime probes."""
     return {"status": "ok", "service": "aegis-sar-dashboard", "port": SERVER_PORT}
 
-
+@app.get("/")
 @app.get("/dashboard")
 async def serve_dashboard():
     """Serve the AEGIS SAR mission console directly."""
