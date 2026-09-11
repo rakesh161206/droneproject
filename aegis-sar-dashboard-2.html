@@ -86,7 +86,10 @@
     display:grid;
     grid-template-columns: 2.35fr 1fr;
     gap:12px;
+    align-items:stretch;
   }
+
+  .grid > .panel{ height:100%; }
 
   .panel{
     background:var(--panel);
@@ -125,7 +128,7 @@
   @keyframes blinkdot{ 0%,100%{opacity:1;} 50%{opacity:0.25;} }
 
   /* ---------- MAP ---------- */
-  .map-wrap{ position:relative; height:560px; }
+  .map-wrap{ position:relative; height:auto; min-height:560px; flex:1; }
   #map{ height:100%; width:100%; background:#0a1210; }
 
   .hud-stack{ position:absolute; left:14px; top:14px; z-index:500; display:flex; flex-direction:column; gap:10px; max-width:230px; }
@@ -475,7 +478,7 @@
     .bottom-row{ grid-template-columns:1fr 1fr; }
     .intel-row{ grid-template-columns:1fr; }
     .controls{ grid-template-columns:1fr 1fr; }
-    .map-wrap{ height:420px; }
+    .map-wrap{ height:420px; min-height:420px; flex:none; }
     .status-cluster{ gap:14px; }
     .basemap-toggle{ top:auto; bottom:14px; left:50%; }
   }
