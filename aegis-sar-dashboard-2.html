@@ -267,6 +267,51 @@
   .alerts::-webkit-scrollbar{ width:6px; }
   .alerts::-webkit-scrollbar-thumb{ background:var(--line); border-radius:3px; }
 
+  .survivors-panel{ min-height:0; }
+  .survivors-toolbar{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:9px 10px; border-bottom:1px solid var(--line-soft);
+  }
+  .survivors-toolbar select{
+    background:var(--panel-raised); color:var(--text-dim); border:1px solid var(--line-soft);
+    border-radius:5px; padding:5px 7px; font:0.64rem 'JetBrains Mono',monospace;
+  }
+  .survivors-list{ padding:8px 10px 10px; display:flex; flex-direction:column; gap:8px; max-height:520px; overflow-y:auto; }
+  .survivor-card{
+    padding:10px; border:1px solid var(--line-soft); border-left:3px solid var(--fire);
+    border-radius:8px; background:var(--panel-raised); cursor:pointer;
+    transition:border-color .15s ease, box-shadow .15s ease, background .15s ease;
+  }
+  .survivor-card:hover{ border-color:var(--flood); background:#0e1a17; }
+  .survivor-card.focused{ border-color:var(--safe); box-shadow:0 0 0 1px var(--safe), 0 0 14px rgba(47,230,164,0.18); }
+  .survivor-top,.survivor-meta,.survivor-window{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .survivor-top{ align-items:flex-start; }
+  .survivor-name{ min-width:0; font-size:0.78rem; font-weight:600; }
+  .survivor-name span{ color:var(--text-dim); font-size:0.68rem; font-weight:400; margin-left:4px; }
+  .survivor-priority{ text-align:right; font:700 1.05rem 'JetBrains Mono',monospace; }
+  .survivor-priority-label{ color:var(--text-faint); font:0.58rem 'JetBrains Mono',monospace; }
+  .priority-critical{ color:var(--alert); }
+  .priority-high{ color:var(--fire); }
+  .priority-medium{ color:#ffd166; }
+  .priority-low{ color:var(--safe); }
+  .survivor-meta{ justify-content:flex-start; margin-top:5px; flex-wrap:wrap; font:0.62rem 'JetBrains Mono',monospace; color:var(--text-dim); }
+  .survivor-badge{ padding:2px 6px; border-radius:4px; font:0.59rem 'JetBrains Mono',monospace; }
+  .survivor-badge.critical{ background:rgba(255,77,94,0.16); color:var(--alert); }
+  .survivor-badge.high{ background:rgba(255,171,46,0.15); color:var(--fire); }
+  .survivor-badge.medium{ background:rgba(63,188,255,0.15); color:var(--flood); }
+  .survivor-team{ background:rgba(63,188,255,0.15); color:var(--flood); }
+  .survivor-condition{ margin-top:5px; color:var(--text-faint); font-size:0.69rem; line-height:1.35; }
+  .survivor-window{ margin-top:7px; font-size:0.62rem; }
+  .survivor-window .countdown{ color:var(--text); font:600 0.68rem 'JetBrains Mono',monospace; }
+  .survivor-window .countdown.critical{ color:var(--alert); animation:blinkdot 1.3s ease-in-out infinite; }
+  .survivor-success{ color:var(--text-dim); font-size:0.61rem; }
+  .survivor-success b{ color:var(--flood); font-family:'JetBrains Mono',monospace; }
+  .survivor-actions{ display:flex; gap:7px; padding:0 10px 10px; }
+  .survivor-actions button{ flex:1; padding:7px 8px; border-radius:6px; cursor:pointer; font:600 0.64rem 'JetBrains Mono',monospace; }
+  .survivor-dispatch{ border:1px solid var(--safe); color:var(--safe); background:rgba(47,230,164,0.08); }
+  .survivor-refresh{ width:34px; border:1px solid var(--line-soft); color:var(--text-dim); background:var(--panel-raised); }
+  .survivor-actions button:hover{ filter:brightness(1.25); }
+
   .zone-card{
     display:flex; flex-direction:column; gap:6px;
     padding:10px 11px;
@@ -557,6 +602,27 @@
         </div>
         <div class="alerts" id="zoneList"><!-- populated by JS --></div>
       </div>
+
+      <div class="panel survivors-panel">
+        <div class="panel-head">
+          <span class="ic" style="color:var(--fire);">♙</span>
+          SURVIVORS RANKED
+          <span class="zone-count" id="survivorRankedCount">12 TRACKED</span>
+        </div>
+        <div class="survivors-toolbar">
+          <span style="font-size:0.65rem;color:var(--text-faint);font-family:'JetBrains Mono',monospace;">GOLDEN WINDOW / PRIORITY</span>
+          <select id="sort-survivors" aria-label="Sort survivors">
+            <option value="priority">PRIORITY</option>
+            <option value="window">GOLDEN WINDOW</option>
+            <option value="confidence">CONFIDENCE</option>
+          </select>
+        </div>
+        <div class="survivors-list" id="survivors-list"><!-- populated by JS --></div>
+        <div class="survivor-actions">
+          <button type="button" class="survivor-dispatch" id="dispatchTopSurvivor">DISPATCH TOP RECO</button>
+          <button type="button" class="survivor-refresh" id="refreshSurvivors" title="Refresh AI ranking">↻</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -765,6 +831,22 @@
   let isNavigating = false;
   let detectedIncidents = [];
   let droneFlightTimer = null;
+  const survivors = [
+    { id:'S-01', name:'Family Group (4)', lat:26.148, lon:91.732, priority:94, window:'00:18:42', condition:'Immobile / Water rising', hazard:'Flood', conf:96, team:null, success:78 },
+    { id:'S-02', name:'Elderly Male', lat:26.151, lon:91.728, priority:91, window:'00:11:05', condition:'Injured leg, isolated', hazard:'Debris', conf:89, team:null, success:82 },
+    { id:'S-03', name:'Woman + Child', lat:26.145, lon:91.735, priority:88, window:'00:24:30', condition:'Rooftop, mobile', hazard:'Flood', conf:97, team:'Team-2', success:91 },
+    { id:'S-04', name:'Young Adult Male', lat:26.142, lon:91.741, priority:76, window:'00:41:00', condition:'Trapped under debris', hazard:'Structure', conf:72, team:null, success:64 },
+    { id:'S-05', name:'Group of 3', lat:26.155, lon:91.725, priority:71, window:'01:05:00', condition:'Vehicle stranded', hazard:'Flood', conf:85, team:null, success:88 },
+    { id:'S-06', name:'Child (solo)', lat:26.149, lon:91.738, priority:97, window:'00:09:15', condition:'Tree, high water', hazard:'Flood', conf:93, team:null, success:71 },
+    { id:'S-07', name:'Adult Female', lat:26.140, lon:91.730, priority:68, window:'00:55:00', condition:'Smoke exposure', hazard:'Fire', conf:81, team:'Team-1', success:79 },
+    { id:'S-08', name:'Elderly Couple', lat:26.153, lon:91.745, priority:85, window:'00:22:40', condition:'Low mobility', hazard:'Landslide risk', conf:88, team:null, success:75 },
+    { id:'S-09', name:'Teenager', lat:26.147, lon:91.722, priority:62, window:'01:20:00', condition:'Minor injury', hazard:'Debris', conf:94, team:null, success:95 },
+    { id:'S-10', name:'Family (5)', lat:26.138, lon:91.736, priority:82, window:'00:28:00', condition:'Rooftop, signaling', hazard:'Flood', conf:98, team:null, success:86 },
+    { id:'S-11', name:'Worker (2)', lat:26.156, lon:91.733, priority:58, window:'01:45:00', condition:'Stable, elevated', hazard:'None nearby', conf:90, team:null, success:97 },
+    { id:'S-12', name:'Unknown (thermal)', lat:26.144, lon:91.729, priority:79, window:'00:35:20', condition:'Heat signature only', hazard:'Smoke', conf:61, team:null, success:55 }
+  ];
+  const survivorMarkers = new Map();
+  let focusedSurvivorId = null;
 
   // Drone marker on map
   const droneMarker = L.marker(dronePos, {
@@ -841,6 +923,110 @@
 
     wrap.innerHTML = html;
   }
+
+  function timeToSec(value){
+    const [hours, minutes, seconds] = value.split(':').map(Number);
+    return hours * 3600 + minutes * 60 + seconds;
+  }
+
+  function priorityClass(priority){
+    return priority >= 90 ? 'priority-critical' : priority >= 75 ? 'priority-high' : priority >= 60 ? 'priority-medium' : 'priority-low';
+  }
+
+  function hazardClass(priority){
+    return priority >= 90 ? 'critical' : priority >= 75 ? 'high' : 'medium';
+  }
+
+  function renderSurvivors(){
+    const list = document.getElementById('survivors-list');
+    if (!list) return;
+    const mode = document.getElementById('sort-survivors')?.value || 'priority';
+    const sorted = [...survivors].sort((a, b) => {
+      if (mode === 'window') return timeToSec(a.window) - timeToSec(b.window);
+      if (mode === 'confidence') return b.conf - a.conf;
+      return b.priority - a.priority;
+    });
+
+    list.innerHTML = sorted.map((survivor) => {
+      const criticalWindow = timeToSec(survivor.window) < 900;
+      return `
+        <div class="survivor-card ${focusedSurvivorId === survivor.id ? 'focused' : ''}" data-survivor-id="${survivor.id}" tabindex="0" role="button" aria-label="Focus ${survivor.id}" onclick="focusSurvivor('${survivor.id}')">
+          <div class="survivor-top">
+            <div class="survivor-name">${survivor.id}<span>${survivor.name}</span></div>
+            <div><div class="survivor-priority-label">PRIORITY</div><div class="survivor-priority ${priorityClass(survivor.priority)}">${survivor.priority}</div></div>
+          </div>
+          <div class="survivor-meta">
+            <span class="survivor-badge ${hazardClass(survivor.priority)}">${survivor.hazard}</span>
+            <span>CONF ${survivor.conf}%</span>
+            ${survivor.team ? `<span class="survivor-badge survivor-team">${survivor.team}</span>` : ''}
+          </div>
+          <div class="survivor-condition">${survivor.condition}</div>
+          <div class="survivor-window">
+            <span><span style="color:var(--alert);">⌛</span> <span class="countdown ${criticalWindow ? 'critical' : ''}" id="window-${survivor.id}">${survivor.window}</span> <span style="color:var(--text-faint);">GOLDEN WINDOW</span></span>
+            <span class="survivor-success">SUCCESS <b>${survivor.success}%</b></span>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function initSurvivorMarkers(){
+    survivors.forEach((survivor) => {
+      const color = survivor.priority >= 90 ? 'var(--alert)' : survivor.priority >= 75 ? 'var(--fire)' : 'var(--flood)';
+      const marker = L.marker([survivor.lat, survivor.lon], {
+        icon: icon(`<div class="pin survivor" style="border-color:${color};color:${color};font-size:13px;">${survivor.id.replace('S-', '')}</div>`, 30)
+      }).addTo(map);
+      marker.bindTooltip(`${survivor.id} · ${survivor.name}`, { direction:'top', offset:[0, -12] });
+      marker.on('click', () => focusSurvivor(survivor.id));
+      survivorMarkers.set(survivor.id, marker);
+    });
+  }
+
+  function focusSurvivor(id){
+    const survivor = survivors.find((item) => item.id === id);
+    if (!survivor) return;
+    focusedSurvivorId = id;
+    map.flyTo([survivor.lat, survivor.lon], 16, { duration: 1.1 });
+    survivorMarkers.forEach((marker, markerId) => {
+      const element = marker.getElement()?.querySelector('.pin');
+      if (element) element.classList.toggle('focused', markerId === id);
+    });
+    renderSurvivors();
+    showStatus(`Focused ${survivor.id}: ${survivor.name} — priority ${survivor.priority}, ${survivor.window} golden window.`, 'ok');
+  }
+
+  function dispatchTop(){
+    const top = [...survivors].sort((a, b) => b.priority - a.priority)[0];
+    focusSurvivor(top.id);
+    setTargetDestination([top.lat, top.lon], `${top.id} ${top.name}`);
+    showStatus(`Dispatch recommendation sent: ${top.id} — ${top.name}. ETA and route are being calculated.`, 'ok');
+  }
+
+  function refreshAI(){
+    survivors.forEach((survivor) => {
+      survivor.priority = Math.max(50, Math.min(99, survivor.priority + Math.floor(Math.random() * 5 - 2)));
+    });
+    renderSurvivors();
+    showStatus('AI survivor rankings refreshed from the latest fused detections.', 'ok');
+  }
+
+  function tickSurvivorWindows(){
+    survivors.forEach((survivor) => {
+      const remaining = Math.max(0, timeToSec(survivor.window) - 1);
+      survivor.window = `${String(Math.floor(remaining / 3600)).padStart(2, '0')}:${String(Math.floor((remaining % 3600) / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`;
+      const element = document.getElementById(`window-${survivor.id}`);
+      if (element) {
+        element.textContent = survivor.window;
+        element.classList.toggle('critical', remaining < 900);
+      }
+    });
+  }
+
+  document.getElementById('sort-survivors').addEventListener('change', renderSurvivors);
+  document.getElementById('dispatchTopSurvivor').addEventListener('click', dispatchTop);
+  document.getElementById('refreshSurvivors').addEventListener('click', refreshAI);
+  renderSurvivors();
+  initSurvivorMarkers();
+  setInterval(tickSurvivorWindows, 1000);
 
   // Dispatch drone to given user location
   function setTargetDestination(pos, label){
